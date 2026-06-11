@@ -4,36 +4,20 @@ import com.cld.finding.client.AiClient;
 import com.cld.finding.model.AiAnalysisRequest;
 import com.cld.finding.model.AiAnalysisResponse;
 import com.cld.finding.model.SecurityFinding;
+import com.cld.finding.repository.FindingRepository;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.ArrayList;
 import java.util.List;
 
 @RestController
 public class FindingController {
 
     private final AiClient aiClient;
+    private final FindingRepository findingRepository;
 
-    private final List<SecurityFinding> findings = new ArrayList<>(List.of(
-            new SecurityFinding(
-                    1L,
-                    "RootCredentialUsage",
-                    "DescribeRegions",
-                    "root",
-                    "86.120.10.55",
-                    "eu-central-1",
-                    "LOW"),
-            new SecurityFinding(
-                    2L,
-                    "RootCredentialUsage",
-                    "GetAccountSummary",
-                    "root",
-                    "86.120.10.55",
-                    "eu-central-1",
-                    "LOW")));
-
-    public FindingController(AiClient aiClient) {
+    public FindingController(AiClient aiClient, FindingRepository findingRepository) {
         this.aiClient = aiClient;
+        this.findingRepository = findingRepository;
     }
 
     @GetMapping("/findings/test")
@@ -43,30 +27,27 @@ public class FindingController {
 
     @GetMapping("/findings")
     public List<SecurityFinding> getFindings() {
-        return findings;
+        return findingRepository.findAll();
     }
 
     @PostMapping("/findings")
     public SecurityFinding createFinding(@RequestBody SecurityFinding finding) {
-        findings.add(finding);
-        return finding;
+        return findingRepository.save(finding);
     }
 
     @PostMapping("/findings/{id}/analyze")
     public AiAnalysisResponse analyzeFinding(@PathVariable Long id) {
-        SecurityFinding finding = findings.stream()
-                .filter(item -> item.id().equals(id))
-                .findFirst()
+        SecurityFinding finding = findingRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Finding not found"));
 
         AiAnalysisRequest request = new AiAnalysisRequest(
-                finding.id(),
-                finding.type(),
-                finding.apiCall(),
-                finding.username(),
-                finding.sourceIp(),
-                finding.region(),
-                finding.severity());
+                finding.getId(),
+                finding.getType(),
+                finding.getApiCall(),
+                finding.getUsername(),
+                finding.getSourceIp(),
+                finding.getRegion(),
+                finding.getSeverity());
 
         return aiClient.analyzeFinding(request);
     }
