@@ -1,45 +1,103 @@
 # Cloud Security AI Assistant
 
-Cloud Security AI Assistant is a Spring Boot microservices application for analyzing cloud security findings.
+Cloud Security AI Assistant is a Spring Boot microservices application designed to analyze cloud security findings, generate AI-style risk explanations, and produce security reports.
 
-The application demonstrates:
+The project demonstrates a local cloud-security architecture using Spring Boot, Spring Cloud, Eureka Service Discovery, Spring Cloud Gateway, Docker Compose, Keycloak IAM, JWT authentication, and role-based authorization.
 
-- Spring Boot microservices
-- Spring Cloud Eureka service discovery
-- Spring Cloud Gateway routing
-- Spring Data JPA database persistence
-- OpenFeign service-to-service communication
-- AI-style security finding analysis
-- Security report generation
+## Architecture
 
-## Services
+The system contains the following services:
 
-| Service | Port | Responsibility |
-|---|---:|---|
-| discovery-service | 8761 | Eureka service registry |
-| gateway-service | 8080 | Central API Gateway |
-| finding-service | 8081 | Stores and manages security findings |
-| ai-service | 8082 | Analyzes security findings |
-| report-service | 8083 | Generates security reports |
+| Service           | Port | Description                                                |
+| ----------------- | ---: | ---------------------------------------------------------- |
+| discovery-service | 8761 | Eureka service discovery server                            |
+| gateway-service   | 8080 | API Gateway and security entry point                       |
+| finding-service   | 8081 | Stores and exposes cloud security findings                 |
+| ai-service        | 8082 | Generates AI-style security analysis                       |
+| report-service    | 8083 | Generates security reports                                 |
+| keycloak          | 8084 | External IAM provider for authentication and authorization |
 
-## Main flow
-
-The strongest application flow is:
+## Main Flow
 
 ```text
 User
-  -> Gateway Service
+  -> Keycloak login
+  -> JWT access token
+  -> Spring Cloud Gateway
   -> Finding Service
-  -> H2 Database
   -> AI Service
   -> Report Service
-  -> Generated security report
+  -> Security Report
+```
 
+## Technologies Used
 
+* Java
+* Spring Boot
+* Spring Cloud
+* Eureka Server / Eureka Client
+* Spring Cloud Gateway
+* OpenFeign
+* Spring Data JPA
+* H2 Database
+* Spring Security
+* OAuth2 Resource Server
+* JWT
+* Keycloak
+* Docker
+* Docker Compose
+* Git / GitHub
 
-## Demo Scenarios
+## Security
 
-### 1. Check Eureka service discovery
+The application uses Keycloak as an external IAM provider.
+
+Configured Keycloak objects:
+
+```text
+Realm: cloud-security
+Client: cloud-security-gateway
+Role: SECURITY_ANALYST
+User: analyst
+```
+
+The Gateway validates JWT Bearer tokens issued by Keycloak.
+
+Access rules:
+
+```text
+/public/**     -> public
+/api/**        -> requires valid JWT + SECURITY_ANALYST role
+```
+
+Requests without a valid token receive:
+
+```text
+401 Unauthorized
+```
+
+Authenticated users with the correct role can access the protected API routes.
+
+## Running the Project Locally with Docker Compose
+
+From the project root, run:
+
+```powershell
+docker compose up --build
+```
+
+This starts all services:
+
+```text
+discovery-service
+gateway-service
+finding-service
+ai-service
+report-service
+keycloak
+```
+
+## Eureka Dashboard
 
 Open:
 
@@ -47,9 +105,7 @@ Open:
 http://localhost:8761
 ```
 
-Expected result:
-
-The following services should be registered and marked as `UP`:
+Expected registered services:
 
 ```text
 GATEWAY-SERVICE
@@ -58,80 +114,162 @@ AI-SERVICE
 REPORT-SERVICE
 ```
 
-This demonstrates Eureka service discovery.
+## Keycloak Admin Console
 
----
+Open:
 
-### 2. Get all security findings
+```text
+http://localhost:8084
+```
 
-```http
-GET http://localhost:8080/api/findings
+Admin credentials for local development:
+
+```text
+Username: admin
+Password: admin
+```
+
+## Public Endpoint Test
+
+This endpoint does not require authentication:
+
+```powershell
+curl.exe -i http://localhost:8080/public/status
 ```
 
 Expected result:
 
-A JSON list of cloud security findings.
+```text
+HTTP/1.1 200
+Cloud Security AI Assistant Gateway is running
+```
 
-This demonstrates Gateway routing and database access through the finding-service.
+## Protected Endpoint Test Without Token
 
----
+```powershell
+curl.exe -i http://localhost:8080/api/findings
+```
 
-### 3. Analyze a security finding
+Expected result:
+
+```text
+HTTP/1.1 401 Unauthorized
+```
+
+## Get JWT Token from Keycloak
+
+```powershell
+$response = Invoke-RestMethod `
+  -Uri "http://localhost:8084/realms/cloud-security/protocol/openid-connect/token" `
+  -Method POST `
+  -ContentType "application/x-www-form-urlencoded" `
+  -Body @{
+    grant_type = "password"
+    client_id = "cloud-security-gateway"
+    username = "analyst"
+    password = "analyst123"
+  }
+
+$token = $response.access_token
+```
+
+## Protected Endpoint Test With Token
 
 ```powershell
 Invoke-RestMethod `
-  -Uri "http://localhost:8080/api/findings/1/analyze" `
-  -Method POST
+  -Uri "http://localhost:8080/api/findings" `
+  -Headers @{ Authorization = "Bearer $token" }
 ```
 
 Expected result:
 
-An AI-style risk explanation and recommended remediation actions.
+```text
+Finding 1: RootCredentialUsage - DescribeRegions
+Finding 2: RootCredentialUsage - GetAccountSummary
+```
 
-This demonstrates service-to-service communication between finding-service and ai-service using OpenFeign.
-
----
-
-### 4. Generate a full security report
+## Generate Full Protected Security Report
 
 ```powershell
 Invoke-RestMethod `
   -Uri "http://localhost:8080/api/findings/1/report" `
-  -Method POST
-```
-
-Expected result:
-
-A generated cloud security report.
-
-This demonstrates the complete flow:
-
-```text
-Gateway
-  -> Finding Service
-  -> H2 Database
-  -> AI Service
-  -> Report Service
-  -> Generated Report
-```
-
----
-
-### 5. Test individual services through the Gateway
-
-```http
-GET http://localhost:8080/api/ai/test
-```
-
-```http
-GET http://localhost:8080/api/reports/test
+  -Method POST `
+  -Headers @{ Authorization = "Bearer $token" }
 ```
 
 Expected result:
 
 ```text
-AI Service is working
-Report Service is working
+CLOUD SECURITY REPORT
+=====================
+
+Finding ID: 1
+Type: RootCredentialUsage
+API Call: DescribeRegions
+Username: root
+Source IP: 86.120.10.55
+Region: eu-central-1
+Severity: LOW
+
+Risk Explanation:
+...
+
+Recommended Actions:
+...
 ```
 
-These endpoints verify that the Gateway can route requests to independent microservices.
+## Demo Scenario
+
+The demo finding is inspired by an AWS GuardDuty scenario where root credentials are used for API calls such as:
+
+```text
+DescribeRegions
+GetAccountSummary
+```
+
+The application stores these findings, sends them to the AI service for analysis, and generates a cloud security report.
+
+## Local Development Notes
+
+The H2 database is used for local development and demo purposes.
+
+The demo findings are automatically loaded when `finding-service` starts.
+
+Docker Compose is used to orchestrate all microservices locally.
+
+Inside Docker, services communicate using container service names, for example:
+
+```text
+http://discovery-service:8761/eureka
+http://keycloak:8080
+```
+
+## Project Status
+
+Implemented:
+
+```text
+Spring Boot microservices
+Spring Cloud Gateway
+Eureka Service Discovery
+OpenFeign service-to-service communication
+H2 database persistence
+AI-style analysis service
+Report generation service
+Dockerfiles for all services
+Docker Compose orchestration
+Keycloak external IAM
+JWT authentication
+Role-based authorization
+Public and protected endpoints
+```
+
+Planned cloud extensions:
+
+```text
+AWS S3 for report storage
+AWS RDS or DynamoDB for persistent cloud database
+AWS deployment using ECS or EC2
+CloudWatch monitoring
+CI/CD pipeline
+```
