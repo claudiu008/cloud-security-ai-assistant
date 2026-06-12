@@ -1,0 +1,51 @@
+{
+    "realm": "cloud-security",
+    "enabled": true,
+    "roles": {
+        "realm": [
+            {
+                "name": "SECURITY_ANALYST",
+                "description": "Security analyst role"
+            }
+        ]
+    },
+    "clients": [
+        {
+            "clientId": "cloud-security-gateway",
+            "name": "Cloud Security Gateway",
+            "enabled": true,
+            "protocol": "openid-connect",
+            "publicClient": true,
+            "standardFlowEnabled": true,
+            "directAccessGrantsEnabled": true,
+            "serviceAccountsEnabled": false,
+            "authorizationServicesEnabled": false,
+            "redirectUris": [
+                "*"
+            ],
+            "webOrigins": [
+                "*"
+            ]
+        }
+    ],
+    "users": [
+        {
+            "username": "analyst",
+            "enabled": true,
+            "email": "analyst@example.com",
+            "emailVerified": true,
+            "firstName": "Security",
+            "lastName": "Analyst",
+            "credentials": [
+                {
+                    "type": "password",
+                    "value": "analyst123",
+                    "temporary": false
+                }
+            ],
+            "realmRoles": [
+                "SECURITY_ANALYST"
+            ]
+        }
+    ]
+}
