@@ -13,8 +13,10 @@ services:
     environment:
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka
       EUREKA_INSTANCE_PREFER_IP_ADDRESS: true
+      KEYCLOAK_JWK_SET_URI: http://keycloak:8080/realms/cloud-security/protocol/openid-connect/certs
     depends_on:
       - discovery-service
+      - keycloak
 
   finding-service:
     build: ./finding-service
