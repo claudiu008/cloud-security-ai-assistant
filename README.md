@@ -1,176 +1,398 @@
 # Cloud Security AI Assistant
 
-Cloud Security AI Assistant is a secured Spring Boot microservices application designed to analyze cloud security findings, generate AI-style risk explanations, produce security reports, and store generated reports in Amazon S3.
+Cloud Security AI Assistant is a secured Spring Boot and Spring Cloud microservices application for analyzing cloud security findings.
 
-The project demonstrates a local cloud-security architecture using Spring Boot, Spring Cloud, Eureka Service Discovery, Spring Cloud Gateway, Docker Compose, Keycloak IAM, JWT authentication, role-based authorization, H2 database persistence, OpenFeign service-to-service communication, and AWS S3 integration.
+The application simulates AWS GuardDuty-style security findings, generates AI-style risk explanations, creates security reports, reads findings from Amazon DynamoDB, and stores generated reports in Amazon S3.
 
-## Architecture
+The project is designed for the Cyber Security Programming laboratory and final exam.
 
-The system contains the following services:
+---
 
-| Service           | Port | Description                                                |
-| ----------------- | ---: | ---------------------------------------------------------- |
-| discovery-service | 8761 | Eureka service discovery server                            |
-| gateway-service   | 8080 | API Gateway and security entry point                       |
-| finding-service   | 8081 | Stores and exposes cloud security findings                 |
-| ai-service        | 8082 | Generates AI-style security analysis                       |
-| report-service    | 8083 | Generates security reports and stores them in Amazon S3    |
-| keycloak          | 8084 | External IAM provider for authentication and authorization |
+## 1. Main features
 
-## Main Flow
+The project includes:
+
+```text
+Spring Boot microservices
+Spring Cloud Eureka service discovery
+Spring Cloud Gateway routing
+OpenFeign service-to-service communication
+Spring Security
+Keycloak external IAM
+JWT authentication
+Role-based authorization
+Local H2 database fallback
+Amazon DynamoDB integration
+Amazon S3 report storage
+AI-style security analysis
+Report generation
+Dockerfiles
+Docker Compose orchestration
+```
+
+---
+
+## 2. Architecture
+
+The application is composed of the following services:
+
+| Service           | Port | Purpose                                                        |
+| ----------------- | ---: | -------------------------------------------------------------- |
+| discovery-service | 8761 | Eureka Server for service discovery                            |
+| gateway-service   | 8080 | API Gateway, routing, JWT validation, role-based authorization |
+| finding-service   | 8081 | Exposes security findings from H2 and DynamoDB                 |
+| ai-service        | 8082 | Generates AI-style security analysis                           |
+| report-service    | 8083 | Generates reports and uploads them to Amazon S3                |
+| keycloak          | 8084 | External IAM provider                                          |
+
+---
+
+## 3. Architecture flow
+
+### Local H2 findings flow
 
 ```text
 User
-  -> Keycloak login
-  -> JWT access token
-  -> Spring Cloud Gateway
+  -> Gateway
+  -> Finding Service
+  -> H2 Database
+  -> Security Findings
+```
+
+Endpoint:
+
+```text
+GET /api/findings
+```
+
+---
+
+### DynamoDB findings flow
+
+```text
+User
+  -> JWT token
+  -> Gateway
+  -> Finding Service
+  -> Amazon DynamoDB
+  -> Security Findings
+```
+
+Endpoint:
+
+```text
+GET /api/findings/dynamodb
+```
+
+DynamoDB table:
+
+```text
+cloud-security-findings
+```
+
+Partition key:
+
+```text
+id
+```
+
+---
+
+### Report generation flow
+
+```text
+User
+  -> JWT token
+  -> Gateway
   -> Finding Service
   -> AI Service
   -> Report Service
   -> Security Report
+```
+
+Endpoint:
+
+```text
+POST /api/findings/1/report
+```
+
+---
+
+### S3 report storage flow
+
+```text
+User
+  -> JWT token
+  -> Gateway
+  -> Finding Service
+  -> AI Service
+  -> Report Service
   -> Amazon S3
+  -> Stored Security Report
 ```
 
-## Technologies Used
-
-* Java
-* Spring Boot
-* Spring Cloud
-* Eureka Server / Eureka Client
-* Spring Cloud Gateway
-* OpenFeign
-* Spring Data JPA
-* H2 Database
-* Spring Security
-* OAuth2 Resource Server
-* JWT
-* Keycloak
-* Docker
-* Docker Compose
-* AWS S3
-* AWS SDK for Java
-* Git / GitHub
-
-## Security
-
-The application uses Keycloak as an external IAM provider.
-
-Configured Keycloak objects:
+Endpoint:
 
 ```text
-Realm: cloud-security
-Client: cloud-security-gateway
-Role: SECURITY_ANALYST
-User: analyst
+POST /api/findings/1/report/store
 ```
 
-The Gateway validates JWT Bearer tokens issued by Keycloak.
-
-Access rules:
-
-```text
-/public/**     -> public
-/api/**        -> requires valid JWT + SECURITY_ANALYST role
-```
-
-Requests without a valid token receive:
-
-```text
-401 Unauthorized
-```
-
-Authenticated users with the correct role can access the protected API routes.
-
-## AWS S3 Integration
-
-The application stores generated security reports in a private Amazon S3 bucket.
-
-Bucket used:
+S3 bucket:
 
 ```text
 cloud-security-ai-assistant-bucket
 ```
 
-Region:
+S3 folder:
 
 ```text
-eu-central-1
+reports/
 ```
 
-S3 object path format:
+---
+
+## 4. Implemented AWS services
+
+The project currently integrates with:
 
 ```text
-reports/finding-<findingId>-<timestamp>.txt
+Amazon DynamoDB
+Amazon S3
 ```
 
-Example:
+### Amazon DynamoDB
+
+DynamoDB is used as the AWS database for security findings.
+
+Table:
 
 ```text
-reports/finding-1-20260613-143000.txt
+cloud-security-findings
 ```
 
-The S3 bucket is private and public access is blocked.
+Example endpoint:
 
-AWS credentials are not stored in source code. They are provided through local environment variables.
+```text
+GET /api/findings/dynamodb
+```
 
-## Environment Variables
+This supports the laboratory requirement:
 
-The project uses a local `.env` file for AWS configuration.
+```text
+AWS RDS or DynamoDB
+```
 
-Create a `.env` file in the project root:
+---
+
+### Amazon S3
+
+S3 is used to store generated security reports.
+
+Bucket:
+
+```text
+cloud-security-ai-assistant-bucket
+```
+
+Example endpoint:
+
+```text
+POST /api/findings/1/report/store
+```
+
+This supports the additional AWS service requirement.
+
+---
+
+## 5. Laboratory grading status
+
+### Grade 5 requirement
+
+Requirement:
+
+```text
+Spring Boot + Spring Cloud dependencies
+1 AI feature
+Deployed on AWS
+AWS RDS or DynamoDB
+```
+
+Current status:
+
+| Requirement    | Status              |
+| -------------- | ------------------- |
+| Spring Boot    | Implemented         |
+| Spring Cloud   | Implemented         |
+| AI feature     | Implemented         |
+| AWS DynamoDB   | Implemented         |
+| AWS deployment | Not implemented yet |
+
+Conclusion:
+
+```text
+Grade 5 is almost complete, but AWS deployment is still required.
+```
+
+---
+
+### Grade 6 requirement
+
+Requirement:
+
+```text
+Grade 5 + one additional AWS service
+```
+
+Current additional AWS service:
+
+```text
+Amazon S3
+```
+
+Conclusion:
+
+```text
+After AWS deployment is completed, Grade 6 becomes defensible because DynamoDB covers the database requirement and S3 is the additional AWS service.
+```
+
+---
+
+### Grade 7 and Grade 8
+
+Possible future AWS services:
+
+```text
+AWS CloudWatch
+AWS Secrets Manager
+```
+
+Current status:
+
+```text
+Not implemented yet.
+```
+
+---
+
+### Grade 9
+
+Requirement:
+
+```text
+AWS CI/CD + Docker
+or
+AWS CDK
+```
+
+Current status:
+
+```text
+Docker is implemented.
+AWS CI/CD or AWS CDK is not implemented yet.
+```
+
+Possible future implementation:
+
+```text
+GitHub Actions + AWS deployment
+```
+
+---
+
+## 6. Security
+
+The application uses Keycloak as an external IAM provider.
+
+Configured IAM objects:
+
+```text
+Realm: cloud-security
+Client: cloud-security-gateway
+User: analyst
+Role: SECURITY_ANALYST
+```
+
+Public endpoint:
+
+```text
+GET /public/status
+```
+
+Protected endpoints:
+
+```text
+GET /api/findings
+GET /api/findings/dynamodb
+POST /api/findings/1/report
+POST /api/findings/1/report/store
+```
+
+Without JWT token:
+
+```text
+HTTP 401 Unauthorized
+```
+
+With valid JWT token and `SECURITY_ANALYST` role:
+
+```text
+HTTP 200 OK
+```
+
+---
+
+## 7. Environment variables
+
+The project uses environment variables for AWS configuration.
+
+Local `.env` file:
 
 ```env
 AWS_REGION=eu-central-1
 S3_BUCKET_NAME=cloud-security-ai-assistant-bucket
-AWS_ACCESS_KEY_ID=your_access_key_here
-AWS_SECRET_ACCESS_KEY=your_secret_key_here
+DYNAMODB_FINDINGS_TABLE_NAME=cloud-security-findings
+AWS_ACCESS_KEY_ID=...
+AWS_SECRET_ACCESS_KEY=...
 ```
 
 Important:
 
 ```text
-.env must never be committed to GitHub.
+The .env file must not be committed to GitHub.
 ```
 
-The `.gitignore` file contains:
+The `.gitignore` file should include:
 
 ```gitignore
 .env
 .idea/
 ```
 
-## Running the Project Locally with Docker Compose
+---
 
-From the project root, run:
+## 8. Running the project locally
+
+Start the full system:
 
 ```powershell
 docker compose up --build
 ```
 
-This starts all services:
-
-```text
-discovery-service
-gateway-service
-finding-service
-ai-service
-report-service
-keycloak
-```
-
-If the images are already built and no code changed, you can run:
+If nothing changed, use:
 
 ```powershell
 docker compose up
 ```
 
-To stop everything:
+Stop the system:
 
 ```powershell
 docker compose down
 ```
 
-## Eureka Dashboard
+---
+
+## 9. Eureka Dashboard
 
 Open:
 
@@ -187,32 +409,11 @@ AI-SERVICE
 REPORT-SERVICE
 ```
 
-## Keycloak Admin Console
+---
 
-Open:
+## 10. Public endpoint test
 
-```text
-http://localhost:8084
-```
-
-Admin credentials for local development:
-
-```text
-Username: admin
-Password: admin
-```
-
-The Keycloak realm is imported automatically from:
-
-```text
-keycloak/realm-export.json
-```
-
-This makes the local environment reproducible. The realm, client, role, and test user are recreated when Keycloak starts.
-
-## Public Endpoint Test
-
-This endpoint does not require authentication:
+Command:
 
 ```powershell
 curl.exe -i http://localhost:8080/public/status
@@ -225,13 +426,11 @@ HTTP/1.1 200
 Cloud Security AI Assistant Gateway is running
 ```
 
-On Linux:
+---
 
-```bash
-curl -i http://localhost:8080/public/status
-```
+## 11. Protected endpoint without token
 
-## Protected Endpoint Test Without Token
+Command:
 
 ```powershell
 curl.exe -i http://localhost:8080/api/findings
@@ -243,15 +442,11 @@ Expected result:
 HTTP/1.1 401 Unauthorized
 ```
 
-On Linux:
+---
 
-```bash
-curl -i http://localhost:8080/api/findings
-```
+## 12. Get JWT token from Keycloak
 
-## Get JWT Token from Keycloak
-
-PowerShell:
+Command:
 
 ```powershell
 $response = Invoke-RestMethod `
@@ -268,20 +463,23 @@ $response = Invoke-RestMethod `
 $token = $response.access_token
 ```
 
-Linux:
+Optional check:
 
-```bash
-TOKEN=$(curl -s -X POST "http://localhost:8084/realms/cloud-security/protocol/openid-connect/token" \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "grant_type=password" \
-  -d "client_id=cloud-security-gateway" \
-  -d "username=analyst" \
-  -d "password=analyst123" | python3 -c "import sys, json; print(json.load(sys.stdin)['access_token'])")
+```powershell
+$token.Length
 ```
 
-## Protected Endpoint Test With Token
+Expected:
 
-PowerShell:
+```text
+A large number, not 0
+```
+
+---
+
+## 13. Test local H2 findings endpoint
+
+Command:
 
 ```powershell
 Invoke-RestMethod `
@@ -289,23 +487,47 @@ Invoke-RestMethod `
   -Headers @{ Authorization = "Bearer $token" }
 ```
 
-Linux:
+Expected result:
 
-```bash
-curl -i http://localhost:8080/api/findings \
-  -H "Authorization: Bearer $TOKEN"
+```text
+RootCredentialUsage - DescribeRegions
+RootCredentialUsage - GetAccountSummary
+```
+
+This endpoint reads from the local H2 database.
+
+---
+
+## 14. Test DynamoDB findings endpoint
+
+Command:
+
+```powershell
+Invoke-RestMethod `
+  -Uri "http://localhost:8080/api/findings/dynamodb" `
+  -Headers @{ Authorization = "Bearer $token" }
 ```
 
 Expected result:
 
 ```text
-Finding 1: RootCredentialUsage - DescribeRegions
-Finding 2: RootCredentialUsage - GetAccountSummary
+RootCredentialUsage - DescribeRegions
+RootCredentialUsage - GetAccountSummary
 ```
 
-## Generate Full Protected Security Report
+Note:
 
-PowerShell:
+```text
+The order may be different because DynamoDB Scan does not guarantee item ordering.
+```
+
+This endpoint reads from Amazon DynamoDB.
+
+---
+
+## 15. Generate normal security report
+
+Command:
 
 ```powershell
 Invoke-RestMethod `
@@ -314,52 +536,24 @@ Invoke-RestMethod `
   -Headers @{ Authorization = "Bearer $token" }
 ```
 
-Linux:
-
-```bash
-curl -i -X POST http://localhost:8080/api/findings/1/report \
-  -H "Authorization: Bearer $TOKEN"
-```
-
 Expected result:
 
 ```text
 CLOUD SECURITY REPORT
 =====================
-
-Finding ID: 1
-Type: RootCredentialUsage
-API Call: DescribeRegions
-Username: root
-Source IP: 86.120.10.55
-Region: eu-central-1
-Severity: LOW
-
-Risk Explanation:
-...
-
-Recommended Actions:
-...
 ```
 
-## Generate and Store Security Report in Amazon S3
+---
 
-The application can also generate a report and store it in the private S3 bucket.
+## 16. Generate and store report in S3
 
-PowerShell:
+Command:
 
 ```powershell
 Invoke-RestMethod `
   -Uri "http://localhost:8080/api/findings/1/report/store" `
   -Method POST `
   -Headers @{ Authorization = "Bearer $token" }
-```
-
-Linux:
-
-```bash
-curl -i -X POST http://localhost:8080/api/findings/1/report/store \
-  -H "Authorization: Bearer $TOKEN"
 ```
 
 Expected result:
@@ -370,127 +564,69 @@ bucket  : cloud-security-ai-assistant-bucket
 s3Key   : reports/finding-1-...
 ```
 
-The generated report appears in S3 under:
+Then verify in AWS Console:
 
 ```text
-reports/
+S3 -> cloud-security-ai-assistant-bucket -> Objects -> reports/
 ```
 
-Example report content:
+Open the generated `.txt` file.
+
+Expected content:
 
 ```text
 CLOUD SECURITY REPORT
 =====================
-
-Finding ID: 1
-Type: RootCredentialUsage
-API Call: DescribeRegions
-Username: root
-Source IP: 86.120.10.55
-Region: eu-central-1
-Severity: LOW
-
-Risk Explanation:
-Security finding detected: RootCredentialUsage. The API call 'DescribeRegions' was executed by user 'root' from IP 86.120.10.55 in region eu-central-1. Severity is LOW.
-
-Recommended Actions:
-- Verify whether this activity was expected
-- Check AWS CloudTrail for related events
-- Review the source IP address
-- Apply least privilege permissions
-- Escalate the incident if the activity is suspicious
 ```
 
-## Demo Scenario
+---
 
-The demo finding is inspired by an AWS GuardDuty-style scenario where root credentials are used for API calls such as:
+## 17. Current demo order
+
+Recommended laboratory demo flow:
 
 ```text
-DescribeRegions
-GetAccountSummary
+1. Start project with Docker Compose
+2. Show Eureka Dashboard
+3. Test public endpoint
+4. Test protected endpoint without token
+5. Get JWT token from Keycloak
+6. Test protected H2 endpoint
+7. Test protected DynamoDB endpoint
+8. Generate normal security report
+9. Generate and store report in S3
+10. Verify generated report in AWS S3 Console
 ```
 
-The application stores these findings, sends them to the AI service for analysis, generates a cloud security report, and can upload that report to Amazon S3.
+---
 
-## Local Development Notes
+## 18. Current strongest explanation
 
-The H2 database is used for local development and demo purposes.
+Cloud Security AI Assistant is a secured Spring Boot microservices application that analyzes cloud security findings, generates AI-style risk explanations, creates reports, reads findings from Amazon DynamoDB, and stores generated reports in Amazon S3.
 
-The demo findings are automatically loaded when `finding-service` starts.
+The system is protected using Keycloak, JWT authentication, and role-based authorization.
 
-Docker Compose is used to orchestrate all microservices locally.
+It runs locally using Docker Compose and is prepared for AWS deployment.
 
-Inside Docker, services communicate using container service names, for example:
+---
+
+## 19. Remaining priority
+
+The remaining priority for the laboratory is:
 
 ```text
-http://discovery-service:8761/eureka
-http://keycloak:8080
+Deploy the application on AWS using one accepted deployment service.
 ```
 
-The application uses environment variables for AWS configuration:
+Planned deployment target:
 
 ```text
-AWS_REGION
-S3_BUCKET_NAME
-AWS_ACCESS_KEY_ID
-AWS_SECRET_ACCESS_KEY
+AWS Elastic Beanstalk with Docker Compose
 ```
 
-No AWS credentials are hardcoded in Java source code.
-
-## Important Files
+After this deployment step, the project can cover:
 
 ```text
-docker-compose.yml
-keycloak/realm-export.json
-gateway-service/src/main/java/com/cld/gateway/config/SecurityConfig.java
-finding-service/src/main/java/com/cld/finding/controller/FindingController.java
-finding-service/src/main/java/com/cld/finding/client/ReportClient.java
-ai-service/src/main/java/com/cld/ai/controller/AiController.java
-report-service/src/main/java/com/cld/report/controller/ReportController.java
-report-service/src/main/java/com/cld/report/config/S3Config.java
-report-service/src/main/java/com/cld/report/service/S3ReportStorageService.java
+Grade 5: Spring Boot + Spring Cloud + AI + AWS deployment + DynamoDB
+Grade 6: Grade 5 + S3 additional AWS service
 ```
-
-## Project Status
-
-Implemented:
-
-```text
-Spring Boot microservices
-Spring Cloud Gateway
-Eureka Service Discovery
-OpenFeign service-to-service communication
-H2 database persistence
-AI-style analysis service
-Report generation service
-Amazon S3 report storage
-Dockerfiles for all services
-Docker Compose orchestration
-Keycloak external IAM
-JWT authentication
-Role-based authorization
-Public and protected endpoints
-Reproducible Keycloak realm import
-```
-
-Implemented AWS service:
-
-```text
-Amazon S3 for storing generated security reports
-```
-
-Planned cloud extensions:
-
-```text
-AWS RDS or DynamoDB for persistent cloud database
-AWS deployment using ECS or EC2
-CloudWatch monitoring
-CI/CD pipeline
-```
-
-## Laboratory Summary
-
-Cloud Security AI Assistant currently demonstrates a secured Spring Boot microservices architecture with service discovery, API Gateway routing, database persistence, AI-style analysis, report generation, external IAM with Keycloak, JWT authentication, role-based authorization, Docker Compose orchestration, and Amazon S3 report storage.
-
-The project is functional locally and has started AWS integration through S3.
