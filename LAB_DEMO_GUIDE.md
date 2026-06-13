@@ -8,6 +8,12 @@ Command:
 docker compose up
 ```
 
+If the code changed, use:
+
+```bash
+docker compose up --build
+```
+
 What I explain:
 
 This command starts the entire microservices system using Docker Compose. Each service runs in its own container: Eureka, Gateway, Finding Service, AI Service, Report Service, and Keycloak.
@@ -132,7 +138,7 @@ curl -i -X POST http://localhost:8080/api/findings/1/report \
 
 What I explain:
 
-This demonstrates the full protected microservices flow.
+This demonstrates the protected microservices flow.
 
 The request goes through the Gateway, then reaches the Finding Service. The Finding Service retrieves the finding from the database, calls the AI Service for risk analysis, then calls the Report Service to generate the final report.
 
@@ -154,7 +160,69 @@ Expected result:
 CLOUD SECURITY REPORT
 ```
 
-## 8. Final explanation
+## 8. Generate and store report in Amazon S3
+
+Command:
+
+```bash
+curl -i -X POST http://localhost:8080/api/findings/1/report/store \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+What I explain:
+
+This demonstrates the full protected flow plus AWS integration.
+
+The request goes through the Gateway and reaches the Finding Service. The Finding Service retrieves the finding from the H2 database, calls the AI Service for risk analysis, then calls the Report Service.
+
+The Report Service generates the cloud security report and uploads it to a private Amazon S3 bucket.
+
+Flow:
+
+```text
+User
+  -> JWT token
+  -> Gateway
+  -> Finding Service
+  -> AI Service
+  -> Report Service
+  -> Amazon S3
+  -> Stored Security Report
+```
+
+Expected result:
+
+```text
+message: Report generated and stored successfully
+bucket: cloud-security-ai-assistant-bucket
+s3Key: reports/finding-1-...
+```
+
+## 9. Verify the report in Amazon S3
+
+Open in AWS Console:
+
+```text
+S3 -> cloud-security-ai-assistant-bucket -> Objects -> reports/
+```
+
+What I explain:
+
+The generated report is stored in a private S3 bucket. Public access is blocked. The application does not store AWS credentials in source code. Credentials are provided through local environment variables.
+
+Expected object:
+
+```text
+reports/finding-1-<timestamp>.txt
+```
+
+Expected file content:
+
+```text
+CLOUD SECURITY REPORT
+```
+
+## 10. Final explanation
 
 This project demonstrates:
 
@@ -170,6 +238,11 @@ JWT authentication
 Role-based authorization
 AI-style security analysis
 Report generation
+Amazon S3 report storage
 ```
 
-The system is currently fully functional locally and prepared for future AWS integration.
+The system is functional locally and includes a real AWS service integration through Amazon S3.
+
+## 11. Main architecture sentence
+
+Cloud Security AI Assistant is a secured Spring Boot microservices system for cloud security findings. It uses Eureka for service discovery, Spring Cloud Gateway for routing and security, Keycloak for external IAM, JWT for authentication, role-based authorization, H2 database for local persistence, Docker Compose for orchestration, separate services for findings, AI-style analysis and report generation, and Amazon S3 for storing generated reports.
