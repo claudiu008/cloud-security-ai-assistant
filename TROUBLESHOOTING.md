@@ -14,25 +14,25 @@ Another container or local process already uses the same port.
 
 Fix:
 
-```bash
+```powershell
 docker compose down
 ```
 
 Then start again:
 
-```bash
+```powershell
 docker compose up
 ```
 
 If the problem continues, check running containers:
 
-```bash
+```powershell
 docker ps
 ```
 
 Stop a specific container:
 
-```bash
+```powershell
 docker stop <container_name>
 ```
 
@@ -50,20 +50,27 @@ The JWT access token expired or was not sent.
 
 Fix: get a new token.
 
-```bash
-TOKEN=$(curl -s -X POST "http://localhost:8084/realms/cloud-security/protocol/openid-connect/token" \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "grant_type=password" \
-  -d "client_id=cloud-security-gateway" \
-  -d "username=analyst" \
-  -d "password=analyst123" | python3 -c "import sys, json; print(json.load(sys.stdin)['access_token'])")
+```powershell
+$response = Invoke-RestMethod `
+  -Uri "http://localhost:8084/realms/cloud-security/protocol/openid-connect/token" `
+  -Method POST `
+  -ContentType "application/x-www-form-urlencoded" `
+  -Body @{
+    grant_type = "password"
+    client_id = "cloud-security-gateway"
+    username = "analyst"
+    password = "analyst123"
+  }
+
+$token = $response.access_token
 ```
 
 Then call the protected endpoint again:
 
-```bash
-curl -i http://localhost:8080/api/findings \
-  -H "Authorization: Bearer $TOKEN"
+```powershell
+Invoke-RestMethod `
+  -Uri "http://localhost:8080/api/findings" `
+  -Headers @{ Authorization = "Bearer $token" }
 ```
 
 ## 3. Keycloak realm does not exist
@@ -82,13 +89,13 @@ Fix:
 
 Check that this file exists:
 
-```bash
-ls keycloak/realm-export.json
+```powershell
+dir keycloak\realm-export.json
 ```
 
 Restart clean:
 
-```bash
+```powershell
 docker compose down
 docker compose up
 ```
@@ -150,78 +157,293 @@ AI-SERVICE
 REPORT-SERVICE
 ```
 
-## 6. Check containers
+## 6. S3 upload fails
+
+Possible error:
+
+```text
+Unable to load credentials
+```
+
+Cause:
+
+AWS credentials are missing from `.env` or not passed to the container.
+
+Fix:
+
+Check that `.env` exists in the project root:
+
+```powershell
+dir .env
+```
+
+Expected variables:
+
+```env
+AWS_REGION=eu-central-1
+S3_BUCKET_NAME=cloud-security-ai-assistant-bucket
+AWS_ACCESS_KEY_ID=...
+AWS_SECRET_ACCESS_KEY=...
+```
+
+Restart Docker Compose after editing `.env`:
+
+```powershell
+docker compose down
+docker compose up --build
+```
+
+## 7. S3 access denied
+
+Possible error:
+
+```text
+AccessDenied
+```
+
+Cause:
+
+The IAM user does not have permission to upload to the bucket.
+
+Fix:
+
+Check IAM policy for the application user.
+
+Required permission for upload:
+
+```text
+s3:PutObject
+```
+
+Required resource:
+
+```text
+arn:aws:s3:::cloud-security-ai-assistant-bucket/reports/*
+```
+
+The application uploads reports under:
+
+```text
+reports/
+```
+
+## 8. S3 bucket not found
+
+Possible error:
+
+```text
+NoSuchBucket
+```
+
+Cause:
+
+Bucket name is wrong or bucket does not exist.
+
+Fix:
+
+Check `.env`:
+
+```env
+S3_BUCKET_NAME=cloud-security-ai-assistant-bucket
+```
+
+Check AWS Console:
+
+```text
+S3 -> cloud-security-ai-assistant-bucket
+```
+
+## 9. S3 region mismatch
+
+Possible error:
+
+```text
+The bucket is in this region...
+```
+
+Cause:
+
+The application uses a different AWS region than the bucket.
+
+Fix:
+
+Check `.env`:
+
+```env
+AWS_REGION=eu-central-1
+```
+
+The project bucket should be in:
+
+```text
+Europe (Frankfurt) eu-central-1
+```
+
+## 10. .env appears in git status
+
+Problem:
+
+```text
+.env appears as untracked file
+```
+
+Cause:
+
+`.gitignore` does not ignore `.env`.
+
+Fix:
+
+Add this to `.gitignore`:
+
+```gitignore
+.env
+.idea/
+```
+
+Then verify:
+
+```powershell
+git status
+```
+
+`.env` must not appear.
+
+## 11. IntelliJ cannot resolve AWS SDK classes
+
+Errors:
+
+```text
+Cannot resolve symbol software
+Cannot resolve symbol S3Client
+Cannot resolve symbol PutObjectRequest
+Cannot resolve symbol RequestBody
+```
+
+Cause:
+
+IntelliJ has not reloaded Maven dependencies.
+
+Fix:
+
+Open Maven tool window and click:
+
+```text
+Reload All Maven Projects
+```
+
+Alternative:
+
+Right click `report-service/pom.xml` and choose:
+
+```text
+Maven -> Reload project
+```
+
+If needed:
+
+```text
+File -> Invalidate Caches -> Invalidate and Restart
+```
+
+## 12. Check containers
 
 List running containers:
 
-```bash
+```powershell
 docker ps
 ```
 
 List all containers:
 
-```bash
+```powershell
 docker ps -a
 ```
 
 View logs for one service:
 
-```bash
+```powershell
 docker logs gateway-service
 docker logs finding-service
+docker logs report-service
 docker logs keycloak
 ```
 
-## 7. Clean restart
+## 13. Clean restart
 
 Use this when the local environment becomes messy:
 
-```bash
+```powershell
 docker compose down
 docker compose up
 ```
 
 If a rebuild is needed:
 
-```bash
+```powershell
 docker compose up --build
 ```
 
-## 8. Main demo commands
+## 14. Main demo commands
 
 Public endpoint:
 
-```bash
-curl -i http://localhost:8080/public/status
+```powershell
+curl.exe -i http://localhost:8080/public/status
 ```
 
 Protected endpoint without token:
 
-```bash
-curl -i http://localhost:8080/api/findings
+```powershell
+curl.exe -i http://localhost:8080/api/findings
 ```
 
 Get token:
 
-```bash
-TOKEN=$(curl -s -X POST "http://localhost:8084/realms/cloud-security/protocol/openid-connect/token" \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "grant_type=password" \
-  -d "client_id=cloud-security-gateway" \
-  -d "username=analyst" \
-  -d "password=analyst123" | python3 -c "import sys, json; print(json.load(sys.stdin)['access_token'])")
+```powershell
+$response = Invoke-RestMethod `
+  -Uri "http://localhost:8084/realms/cloud-security/protocol/openid-connect/token" `
+  -Method POST `
+  -ContentType "application/x-www-form-urlencoded" `
+  -Body @{
+    grant_type = "password"
+    client_id = "cloud-security-gateway"
+    username = "analyst"
+    password = "analyst123"
+  }
+
+$token = $response.access_token
 ```
 
 Protected endpoint with token:
 
-```bash
-curl -i http://localhost:8080/api/findings \
-  -H "Authorization: Bearer $TOKEN"
+```powershell
+Invoke-RestMethod `
+  -Uri "http://localhost:8080/api/findings" `
+  -Headers @{ Authorization = "Bearer $token" }
 ```
 
-Generate report:
+Generate normal report:
 
-```bash
-curl -i -X POST http://localhost:8080/api/findings/1/report \
-  -H "Authorization: Bearer $TOKEN"
+```powershell
+Invoke-RestMethod `
+  -Uri "http://localhost:8080/api/findings/1/report" `
+  -Method POST `
+  -Headers @{ Authorization = "Bearer $token" }
+```
+
+Generate and store report in S3:
+
+```powershell
+Invoke-RestMethod `
+  -Uri "http://localhost:8080/api/findings/1/report/store" `
+  -Method POST `
+  -Headers @{ Authorization = "Bearer $token" }
+```
+
+Expected S3 result:
+
+```text
+message : Report generated and stored successfully
+bucket  : cloud-security-ai-assistant-bucket
+s3Key   : reports/finding-1-...
 ```

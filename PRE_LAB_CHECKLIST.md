@@ -4,8 +4,8 @@
 
 Run this once at home, with internet connection:
 
-```bash
-cd ~/unitbv/projects/cloud-security-ai-assistant
+```powershell
+cd "C:\Users\claud\OneDrive\Documents\unitbv\Cyber_Security_Programming\projects\cloud-security-ai-assistant"
 docker compose up --build
 ```
 
@@ -26,43 +26,76 @@ AI-SERVICE
 REPORT-SERVICE
 ```
 
-## 2. Stop the system cleanly
+## 2. Verify AWS S3 configuration
+
+Check that the local `.env` file exists in the project root.
+
+Expected variables:
+
+```env
+AWS_REGION=eu-central-1
+S3_BUCKET_NAME=cloud-security-ai-assistant-bucket
+AWS_ACCESS_KEY_ID=...
+AWS_SECRET_ACCESS_KEY=...
+```
+
+Important:
+
+```text
+.env must not be committed to GitHub.
+```
+
+Verify:
+
+```powershell
+git status
+```
+
+Expected:
+
+```text
+nothing to commit, working tree clean
+```
+
+The `.env` file should not appear in Git status.
+
+## 3. Stop the system cleanly after testing
 
 After testing:
 
-```bash
+```powershell
 Ctrl + C
 docker compose down
 ```
 
 The Docker images remain on the laptop, so the project can start faster later.
 
-## 3. At laboratory
+## 4. At laboratory
 
 Go to the project folder:
 
-```bash
-cd ~/unitbv/projects/cloud-security-ai-assistant
+```powershell
+cd "C:\Users\claud\OneDrive\Documents\unitbv\Cyber_Security_Programming\projects\cloud-security-ai-assistant"
 ```
 
 Start the project:
 
-```bash
+```powershell
 docker compose up
 ```
 
 Use `--build` only if code changed:
 
-```bash
+```powershell
 docker compose up --build
 ```
 
-## 4. Demo order
+## 5. Demo order
 
 ### Step 1 - Public endpoint
 
-```bash
-curl -i http://localhost:8080/public/status
+```powershell
+curl.exe -i http://localhost:8080/public/status
 ```
 
 Expected:
@@ -78,8 +111,8 @@ The Gateway is running and this route is public.
 
 ### Step 2 - Protected endpoint without token
 
-```bash
-curl -i http://localhost:8080/api/findings
+```powershell
+curl.exe -i http://localhost:8080/api/findings
 ```
 
 Expected:
@@ -94,13 +127,25 @@ The API is protected by Spring Security. Without JWT token, access is denied.
 
 ### Step 3 - Get JWT token
 
-```bash
-TOKEN=$(curl -s -X POST "http://localhost:8084/realms/cloud-security/protocol/openid-connect/token" \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "grant_type=password" \
-  -d "client_id=cloud-security-gateway" \
-  -d "username=analyst" \
-  -d "password=analyst123" | python3 -c "import sys, json; print(json.load(sys.stdin)['access_token'])")
+```powershell
+$response = Invoke-RestMethod `
+  -Uri "http://localhost:8084/realms/cloud-security/protocol/openid-connect/token" `
+  -Method POST `
+  -ContentType "application/x-www-form-urlencoded" `
+  -Body @{
+    grant_type = "password"
+    client_id = "cloud-security-gateway"
+    username = "analyst"
+    password = "analyst123"
+  }
+
+$token = $response.access_token
+```
+
+Optional check:
+
+```powershell
+$token.Length
 ```
 
 Explain:
@@ -109,9 +154,10 @@ The `analyst` user authenticates through Keycloak and receives a JWT access toke
 
 ### Step 4 - Protected endpoint with token
 
-```bash
-curl -i http://localhost:8080/api/findings \
-  -H "Authorization: Bearer $TOKEN"
+```powershell
+Invoke-RestMethod `
+  -Uri "http://localhost:8080/api/findings" `
+  -Headers @{ Authorization = "Bearer $token" }
 ```
 
 Expected:
@@ -125,11 +171,13 @@ Explain:
 
 The Gateway validates the JWT and checks the `SECURITY_ANALYST` role.
 
-### Step 5 - Generate report
+### Step 5 - Generate normal report
 
-```bash
-curl -i -X POST http://localhost:8080/api/findings/1/report \
-  -H "Authorization: Bearer $TOKEN"
+```powershell
+Invoke-RestMethod `
+  -Uri "http://localhost:8080/api/findings/1/report" `
+  -Method POST `
+  -Headers @{ Authorization = "Bearer $token" }
 ```
 
 Expected:
@@ -140,19 +188,60 @@ CLOUD SECURITY REPORT
 
 Explain:
 
-This shows the full protected flow: Gateway, Finding Service, AI Service, Report Service.
+This shows the protected microservices flow: Gateway, Finding Service, AI Service, Report Service.
 
-## 5. If something fails
+### Step 6 - Generate and store report in Amazon S3
+
+```powershell
+Invoke-RestMethod `
+  -Uri "http://localhost:8080/api/findings/1/report/store" `
+  -Method POST `
+  -Headers @{ Authorization = "Bearer $token" }
+```
+
+Expected:
+
+```text
+message : Report generated and stored successfully
+bucket  : cloud-security-ai-assistant-bucket
+s3Key   : reports/finding-1-...
+```
+
+Explain:
+
+This shows the full protected flow plus AWS S3 integration. The generated report is stored in a private S3 bucket.
+
+### Step 7 - Verify report in S3
+
+Open AWS Console:
+
+```text
+S3 -> cloud-security-ai-assistant-bucket -> Objects -> reports/
+```
+
+Expected:
+
+```text
+finding-1-<timestamp>.txt
+```
+
+Open the file and verify:
+
+```text
+CLOUD SECURITY REPORT
+```
+
+## 6. If something fails
 
 Check containers:
 
-```bash
+```powershell
 docker ps
 ```
 
 Clean restart:
 
-```bash
+```powershell
 docker compose down
 docker compose up
 ```
@@ -161,7 +250,17 @@ If the token returns `401`, generate a new token.
 
 If Eureka does not show all services immediately, wait 30-60 seconds and refresh the browser.
 
-## 6. Files to open during presentation
+If S3 upload fails, verify:
+
+```text
+.env exists
+AWS credentials are correct
+S3 bucket exists
+Bucket region is eu-central-1
+IAM user has s3:PutObject permission
+```
+
+## 7. Files to open during presentation
 
 Useful files:
 
@@ -169,12 +268,17 @@ Useful files:
 README.md
 LAB_DEMO_GUIDE.md
 PRESENTATION_SCRIPT.md
+REQUIREMENTS_MAPPING.md
 TROUBLESHOOTING.md
 docker-compose.yml
 gateway-service/src/main/java/com/cld/gateway/config/SecurityConfig.java
 keycloak/realm-export.json
+finding-service/src/main/java/com/cld/finding/controller/FindingController.java
+report-service/src/main/java/com/cld/report/controller/ReportController.java
+report-service/src/main/java/com/cld/report/config/S3Config.java
+report-service/src/main/java/com/cld/report/service/S3ReportStorageService.java
 ```
 
-## 7. Main sentence for presentation
+## 8. Main sentence for presentation
 
-Cloud Security AI Assistant is a secured Spring Boot microservices system for analyzing cloud security findings. It uses Eureka for service discovery, Spring Cloud Gateway for routing and security, Keycloak for external IAM, JWT for authentication, role-based authorization, Docker Compose for orchestration, and separate services for findings, AI-style analysis, and report generation.
+Cloud Security AI Assistant is a secured Spring Boot microservices system for analyzing cloud security findings. It uses Eureka for service discovery, Spring Cloud Gateway for routing and security, Keycloak for external IAM, JWT for authentication, role-based authorization, H2 database, Docker Compose for orchestration, and Amazon S3 for storing generated security reports.
