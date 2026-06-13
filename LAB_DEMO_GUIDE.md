@@ -10,6 +10,8 @@ The goal is to demonstrate:
 * Keycloak authentication
 * JWT validation
 * Role-based authorization
+* Local H2 database fallback
+* Amazon DynamoDB database integration
 * Finding Service, AI Service, and Report Service communication
 * Amazon S3 report storage
 
@@ -207,7 +209,7 @@ The Gateway validates this JWT token before allowing access to protected routes.
 
 ---
 
-## 8. Test protected findings endpoint with token
+## 8. Test protected local H2 findings endpoint
 
 Command:
 
@@ -239,17 +241,82 @@ severity : LOW
 
 What I explain:
 
-Now I send the JWT token in the `Authorization` header.
+This endpoint reads findings from the local H2 database.
 
-The Gateway validates the token and checks that the authenticated user has the `SECURITY_ANALYST` role.
+H2 is kept as a local fallback database, useful for development and stable demonstrations.
 
-Because the token is valid and the role is correct, the request is forwarded to the Finding Service.
-
-The Finding Service returns the stored cloud security findings from the H2 database.
+The request still passes through the secured Gateway and requires a valid JWT token.
 
 ---
 
-## 9. Generate normal security report
+## 9. Test protected DynamoDB findings endpoint
+
+Command:
+
+```powershell
+Invoke-RestMethod `
+  -Uri "http://localhost:8080/api/findings/dynamodb" `
+  -Headers @{ Authorization = "Bearer $token" }
+```
+
+Expected result:
+
+```text
+id       : 1
+type     : RootCredentialUsage
+apiCall  : DescribeRegions
+username : root
+sourceIp : 86.120.10.55
+region   : eu-central-1
+severity : LOW
+
+id       : 2
+type     : RootCredentialUsage
+apiCall  : GetAccountSummary
+username : root
+sourceIp : 86.120.10.55
+region   : eu-central-1
+severity : LOW
+```
+
+Note:
+
+```text
+The order may be different because DynamoDB Scan does not guarantee item ordering.
+```
+
+What I explain:
+
+This endpoint reads the findings from Amazon DynamoDB.
+
+The DynamoDB table is:
+
+```text
+cloud-security-findings
+```
+
+The partition key is:
+
+```text
+id
+```
+
+The flow is:
+
+```text
+User
+  -> JWT token
+  -> Gateway
+  -> Finding Service
+  -> Amazon DynamoDB
+  -> Security Findings
+```
+
+This demonstrates the AWS database requirement from the laboratory grading criteria.
+
+---
+
+## 10. Generate normal security report
 
 Command:
 
@@ -282,7 +349,7 @@ User
   -> Security Report
 ```
 
-The Finding Service retrieves the finding from the database.
+The Finding Service retrieves the finding from the local database.
 
 Then it calls the AI Service to generate a risk explanation and recommended actions.
 
@@ -290,7 +357,7 @@ Then it calls the Report Service to generate the final text report.
 
 ---
 
-## 10. Generate and store report in Amazon S3
+## 11. Generate and store report in Amazon S3
 
 Command:
 
@@ -311,7 +378,7 @@ s3Key   : reports/finding-1-...
 
 What I explain:
 
-This demonstrates the full protected flow plus AWS integration.
+This demonstrates the full protected flow plus AWS S3 integration.
 
 The request goes through:
 
@@ -342,7 +409,7 @@ reports/
 
 ---
 
-## 11. Verify report in AWS S3
+## 12. Verify report in AWS S3
 
 Open in AWS Console:
 
@@ -379,7 +446,45 @@ The `.env` file is ignored by Git, so secrets are not pushed to GitHub.
 
 ---
 
-## 12. Clean stop after demo
+## 13. AWS services demonstrated
+
+The current project demonstrates these AWS services:
+
+```text
+Amazon DynamoDB
+Amazon S3
+```
+
+DynamoDB is used as the AWS database for cloud security findings.
+
+S3 is used as an additional AWS service for storing generated security reports.
+
+For the laboratory grading criteria:
+
+```text
+DynamoDB supports the Grade 5 database requirement.
+S3 supports the Grade 6 additional AWS service requirement.
+```
+
+The remaining Grade 5 requirement is AWS deployment using one of the accepted services:
+
+```text
+ECS
+Fargate
+EKS
+CloudFront
+Elastic Beanstalk
+```
+
+The planned deployment target is:
+
+```text
+Elastic Beanstalk with Docker Compose
+```
+
+---
+
+## 14. Clean stop after demo
 
 Command:
 
@@ -401,7 +506,7 @@ docker compose up
 
 ---
 
-## 13. Main architecture explanation
+## 15. Main architecture explanation
 
 Cloud Security AI Assistant is a secured Spring Boot microservices system for cloud security findings.
 
@@ -413,7 +518,8 @@ Spring Cloud Gateway for routing and security
 Keycloak as external IAM provider
 JWT for authentication
 Role-based authorization with SECURITY_ANALYST
-H2 database for local persistence
+H2 database for local fallback
+Amazon DynamoDB for AWS database integration
 OpenFeign for service-to-service communication
 Docker Compose for orchestration
 Amazon S3 for storing generated reports
@@ -421,7 +527,7 @@ Amazon S3 for storing generated reports
 
 ---
 
-## 14. What the project demonstrates
+## 16. What the project demonstrates
 
 This project demonstrates:
 
@@ -432,6 +538,7 @@ Eureka Service Discovery
 OpenFeign communication
 Spring Data JPA
 H2 database
+Amazon DynamoDB
 Dockerfiles
 Docker Compose
 Keycloak external IAM
@@ -446,6 +553,6 @@ Environment-based AWS configuration
 
 ---
 
-## 15. Short final presentation sentence
+## 17. Short final presentation sentence
 
-Cloud Security AI Assistant is a secured Spring Boot microservices application that analyzes cloud security findings, generates AI-style risk explanations, creates security reports, and stores generated reports in Amazon S3. The system is protected with Keycloak, JWT authentication, and role-based authorization, and it runs locally using Docker Compose.
+Cloud Security AI Assistant is a secured Spring Boot microservices application that analyzes cloud security findings, generates AI-style risk explanations, creates security reports, reads findings from Amazon DynamoDB, and stores generated reports in Amazon S3. The system is protected with Keycloak, JWT authentication, and role-based authorization, and it runs locally using Docker Compose.
