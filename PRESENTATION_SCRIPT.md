@@ -4,7 +4,7 @@
 
 This project is called **Cloud Security AI Assistant**.
 
-It is a secured Spring Boot microservices application that analyzes cloud security findings, generates AI-style risk explanations, and produces security reports.
+It is a secured Spring Boot microservices application that analyzes cloud security findings, generates AI-style risk explanations, produces security reports, and stores generated reports in Amazon S3.
 
 The project is inspired by AWS GuardDuty-style findings, especially root credential usage events such as:
 
@@ -24,7 +24,7 @@ discovery-service  -> Eureka Server
 gateway-service    -> API Gateway + Security
 finding-service    -> Stores security findings
 ai-service         -> Generates AI-style analysis
-report-service     -> Generates security reports
+report-service     -> Generates reports and uploads them to S3
 keycloak           -> External IAM provider
 ```
 
@@ -54,6 +54,12 @@ This shows that the microservices register themselves dynamically with Eureka.
 ## 4. Docker Compose orchestration
 
 The whole system starts with one command:
+
+```powershell
+docker compose up
+```
+
+or, if rebuilding is needed:
 
 ```powershell
 docker compose up --build
@@ -162,7 +168,7 @@ This proves that authenticated users with the `SECURITY_ANALYST` role can access
 
 ## 10. Full protected report flow
 
-Finally, I generate a full protected security report:
+Then I generate a full protected security report:
 
 ```powershell
 Invoke-RestMethod `
@@ -177,7 +183,7 @@ Expected result:
 CLOUD SECURITY REPORT
 ```
 
-This demonstrates the complete flow:
+This demonstrates the protected microservices flow:
 
 ```text
 Keycloak
@@ -189,7 +195,70 @@ Keycloak
   -> Security Report
 ```
 
-## 11. What the project demonstrates
+## 11. Amazon S3 storage flow
+
+Finally, I generate and store the report in Amazon S3:
+
+```powershell
+Invoke-RestMethod `
+  -Uri "http://localhost:8080/api/findings/1/report/store" `
+  -Method POST `
+  -Headers @{ Authorization = "Bearer $token" }
+```
+
+Expected result:
+
+```text
+message : Report generated and stored successfully
+bucket  : cloud-security-ai-assistant-bucket
+s3Key   : reports/finding-1-...
+```
+
+This demonstrates the full local and AWS flow:
+
+```text
+Keycloak
+  -> JWT token
+  -> Gateway security validation
+  -> Finding Service
+  -> AI Service
+  -> Report Service
+  -> Amazon S3
+  -> Stored Security Report
+```
+
+The report is stored in a private S3 bucket:
+
+```text
+cloud-security-ai-assistant-bucket
+```
+
+The object is stored under:
+
+```text
+reports/
+```
+
+## 12. AWS security explanation
+
+The S3 bucket is private and public access is blocked.
+
+AWS credentials are not stored in Java source code.
+
+They are loaded through environment variables:
+
+```text
+AWS_REGION
+S3_BUCKET_NAME
+AWS_ACCESS_KEY_ID
+AWS_SECRET_ACCESS_KEY
+```
+
+The `.env` file is ignored by Git, so secrets are not pushed to GitHub.
+
+The IAM user used by the application has limited permissions for uploading reports to the project S3 bucket.
+
+## 13. What the project demonstrates
 
 This project demonstrates:
 
@@ -208,16 +277,25 @@ Role-based authorization
 Public and protected endpoints
 AI-style security analysis
 Report generation
+Amazon S3 report storage
+Environment-based AWS configuration
 ```
 
-## 12. Future AWS extension
+## 14. Current AWS integration
 
-The next planned step is to connect the local system to AWS services.
-
-Possible AWS extensions:
+The project currently integrates with:
 
 ```text
-AWS S3 for storing generated reports
+Amazon S3
+```
+
+S3 is used to store generated cloud security reports.
+
+## 15. Future AWS extension
+
+The next planned steps are:
+
+```text
 AWS RDS or DynamoDB for persistent findings
 AWS ECS or EC2 for deployment
 AWS CloudWatch for monitoring
