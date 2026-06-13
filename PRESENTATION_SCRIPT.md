@@ -1,40 +1,94 @@
-# Presentation Script - Cloud Security AI Assistant
+# Laboratory Demo Guide - Cloud Security AI Assistant
 
-## 1. Project introduction
+This guide contains the exact manual steps for presenting and testing the project during the laboratory.
 
-This project is called **Cloud Security AI Assistant**.
+The goal is to demonstrate:
 
-It is a secured Spring Boot microservices application that analyzes cloud security findings, generates AI-style risk explanations, produces security reports, and stores generated reports in Amazon S3.
+* Docker Compose orchestration
+* Eureka service discovery
+* Spring Cloud Gateway routing
+* Keycloak authentication
+* JWT validation
+* Role-based authorization
+* Finding Service, AI Service, and Report Service communication
+* Amazon S3 report storage
 
-The project is inspired by AWS GuardDuty-style findings, especially root credential usage events such as:
+---
 
-```text
-DescribeRegions
-GetAccountSummary
+## 1. Check Git status before starting
+
+Command:
+
+```powershell
+git status
 ```
 
-## 2. Architecture overview
-
-The application uses a microservices architecture.
-
-Services:
+Expected result:
 
 ```text
-discovery-service  -> Eureka Server
-gateway-service    -> API Gateway + Security
-finding-service    -> Stores security findings
-ai-service         -> Generates AI-style analysis
-report-service     -> Generates reports and uploads them to S3
-keycloak           -> External IAM provider
+nothing to commit, working tree clean
 ```
 
-All services run locally using Docker Compose.
+What I explain:
 
-## 3. Service discovery
+Before starting the demo, I verify that the repository is clean and all changes are committed to GitHub.
 
-I use Eureka for service discovery.
+---
 
-Open:
+## 2. Stop any previous containers
+
+Command:
+
+```powershell
+docker compose down
+```
+
+What I explain:
+
+This stops and removes the existing containers from a previous run. It gives me a clean local environment before starting the demo.
+
+Docker images remain available locally, so they do not need to be downloaded again.
+
+---
+
+## 3. Start the full system
+
+Command:
+
+```powershell
+docker compose up --build
+```
+
+What I explain:
+
+This command builds and starts the complete microservices system.
+
+Docker Compose starts all required containers:
+
+```text
+discovery-service
+gateway-service
+finding-service
+ai-service
+report-service
+keycloak
+```
+
+Each service runs in its own container.
+
+Docker Compose is used because the project has multiple services that must run together and communicate through Docker's internal network.
+
+For a faster start, if no code changed, I can use:
+
+```powershell
+docker compose up
+```
+
+---
+
+## 4. Open Eureka Dashboard
+
+Open in browser:
 
 ```text
 http://localhost:8761
@@ -49,38 +103,21 @@ AI-SERVICE
 REPORT-SERVICE
 ```
 
-This shows that the microservices register themselves dynamically with Eureka.
+What I explain:
 
-## 4. Docker Compose orchestration
+Eureka is used for service discovery.
 
-The whole system starts with one command:
+Each microservice registers itself in Eureka, so other services can discover it dynamically.
 
-```powershell
-docker compose up
-```
+This proves that the services are running and registered.
 
-or, if rebuilding is needed:
+If not all services appear immediately, I wait 30-60 seconds and refresh the page.
 
-```powershell
-docker compose up --build
-```
+---
 
-Docker Compose starts all containers:
+## 5. Test public endpoint
 
-```text
-discovery-service
-gateway-service
-finding-service
-ai-service
-report-service
-keycloak
-```
-
-This replaces running each Spring Boot service manually.
-
-## 5. Public endpoint demo
-
-First, I test a public endpoint:
+Command:
 
 ```powershell
 curl.exe -i http://localhost:8080/public/status
@@ -93,11 +130,17 @@ HTTP/1.1 200
 Cloud Security AI Assistant Gateway is running
 ```
 
-This proves the Gateway is running and public routes work without authentication.
+What I explain:
 
-## 6. Protected endpoint without token
+This endpoint is public and does not require authentication.
 
-Then I test a protected endpoint without authentication:
+It confirms that the Gateway is running and accessible.
+
+---
+
+## 6. Test protected endpoint without token
+
+Command:
 
 ```powershell
 curl.exe -i http://localhost:8080/api/findings
@@ -109,26 +152,19 @@ Expected result:
 HTTP/1.1 401 Unauthorized
 ```
 
-This proves Spring Security protects the API.
+What I explain:
 
-## 7. Keycloak authentication
+This endpoint is protected by Spring Security.
 
-The project uses Keycloak as an external IAM provider.
+Because I do not send a JWT token, the Gateway rejects the request.
 
-Configured IAM objects:
+This proves that unauthenticated users cannot access the protected API.
 
-```text
-Realm: cloud-security
-Client: cloud-security-gateway
-Role: SECURITY_ANALYST
-User: analyst
-```
+---
 
-The Keycloak realm is imported automatically when Docker Compose starts, so the environment is reproducible.
+## 7. Get JWT token from Keycloak
 
-## 8. Get JWT token
-
-I authenticate the `analyst` user and get a JWT access token:
+Command:
 
 ```powershell
 $response = Invoke-RestMethod `
@@ -145,11 +181,35 @@ $response = Invoke-RestMethod `
 $token = $response.access_token
 ```
 
-The JWT is then sent to the Gateway using the Authorization header.
+Optional verification:
 
-## 9. Protected endpoint with token
+```powershell
+$token.Length
+```
 
-Now I call the protected findings endpoint with the JWT token:
+Expected result:
+
+```text
+A large number, not 0
+```
+
+What I explain:
+
+Keycloak is used as an external IAM provider.
+
+The user `analyst` authenticates with Keycloak.
+
+Keycloak returns a JWT access token.
+
+The user has the `SECURITY_ANALYST` role.
+
+The Gateway validates this JWT token before allowing access to protected routes.
+
+---
+
+## 8. Test protected findings endpoint with token
+
+Command:
 
 ```powershell
 Invoke-RestMethod `
@@ -160,15 +220,38 @@ Invoke-RestMethod `
 Expected result:
 
 ```text
-RootCredentialUsage - DescribeRegions
-RootCredentialUsage - GetAccountSummary
+id       : 1
+type     : RootCredentialUsage
+apiCall  : DescribeRegions
+username : root
+sourceIp : 86.120.10.55
+region   : eu-central-1
+severity : LOW
+
+id       : 2
+type     : RootCredentialUsage
+apiCall  : GetAccountSummary
+username : root
+sourceIp : 86.120.10.55
+region   : eu-central-1
+severity : LOW
 ```
 
-This proves that authenticated users with the `SECURITY_ANALYST` role can access protected APIs.
+What I explain:
 
-## 10. Full protected report flow
+Now I send the JWT token in the `Authorization` header.
 
-Then I generate a full protected security report:
+The Gateway validates the token and checks that the authenticated user has the `SECURITY_ANALYST` role.
+
+Because the token is valid and the role is correct, the request is forwarded to the Finding Service.
+
+The Finding Service returns the stored cloud security findings from the H2 database.
+
+---
+
+## 9. Generate normal security report
+
+Command:
 
 ```powershell
 Invoke-RestMethod `
@@ -181,23 +264,35 @@ Expected result:
 
 ```text
 CLOUD SECURITY REPORT
+=====================
 ```
 
-This demonstrates the protected microservices flow:
+What I explain:
+
+This demonstrates the protected microservices flow.
+
+The request goes through:
 
 ```text
-Keycloak
-  -> JWT token
-  -> Gateway security validation
+User
+  -> Gateway
   -> Finding Service
   -> AI Service
   -> Report Service
   -> Security Report
 ```
 
-## 11. Amazon S3 storage flow
+The Finding Service retrieves the finding from the database.
 
-Finally, I generate and store the report in Amazon S3:
+Then it calls the AI Service to generate a risk explanation and recommended actions.
+
+Then it calls the Report Service to generate the final text report.
+
+---
+
+## 10. Generate and store report in Amazon S3
+
+Command:
 
 ```powershell
 Invoke-RestMethod `
@@ -214,12 +309,16 @@ bucket  : cloud-security-ai-assistant-bucket
 s3Key   : reports/finding-1-...
 ```
 
-This demonstrates the full local and AWS flow:
+What I explain:
+
+This demonstrates the full protected flow plus AWS integration.
+
+The request goes through:
 
 ```text
-Keycloak
+User
   -> JWT token
-  -> Gateway security validation
+  -> Gateway
   -> Finding Service
   -> AI Service
   -> Report Service
@@ -227,7 +326,9 @@ Keycloak
   -> Stored Security Report
 ```
 
-The report is stored in a private S3 bucket:
+The Report Service generates the report and uploads it to Amazon S3.
+
+The bucket used is:
 
 ```text
 cloud-security-ai-assistant-bucket
@@ -239,26 +340,88 @@ The object is stored under:
 reports/
 ```
 
-## 12. AWS security explanation
+---
 
-The S3 bucket is private and public access is blocked.
+## 11. Verify report in AWS S3
+
+Open in AWS Console:
+
+```text
+S3 -> cloud-security-ai-assistant-bucket -> Objects -> reports/
+```
+
+Expected object:
+
+```text
+reports/finding-1-<timestamp>.txt
+```
+
+Open the generated `.txt` file.
+
+Expected content:
+
+```text
+CLOUD SECURITY REPORT
+=====================
+```
+
+What I explain:
+
+The generated report is stored in a private S3 bucket.
+
+Public access is blocked.
 
 AWS credentials are not stored in Java source code.
 
-They are loaded through environment variables:
-
-```text
-AWS_REGION
-S3_BUCKET_NAME
-AWS_ACCESS_KEY_ID
-AWS_SECRET_ACCESS_KEY
-```
+They are provided through local environment variables from the `.env` file.
 
 The `.env` file is ignored by Git, so secrets are not pushed to GitHub.
 
-The IAM user used by the application has limited permissions for uploading reports to the project S3 bucket.
+---
 
-## 13. What the project demonstrates
+## 12. Clean stop after demo
+
+Command:
+
+```powershell
+docker compose down
+```
+
+What I explain:
+
+This stops the local environment cleanly.
+
+The containers are removed, but the Docker images remain on the machine.
+
+The project can be started again later with:
+
+```powershell
+docker compose up
+```
+
+---
+
+## 13. Main architecture explanation
+
+Cloud Security AI Assistant is a secured Spring Boot microservices system for cloud security findings.
+
+It uses:
+
+```text
+Eureka for service discovery
+Spring Cloud Gateway for routing and security
+Keycloak as external IAM provider
+JWT for authentication
+Role-based authorization with SECURITY_ANALYST
+H2 database for local persistence
+OpenFeign for service-to-service communication
+Docker Compose for orchestration
+Amazon S3 for storing generated reports
+```
+
+---
+
+## 14. What the project demonstrates
 
 This project demonstrates:
 
@@ -281,23 +444,8 @@ Amazon S3 report storage
 Environment-based AWS configuration
 ```
 
-## 14. Current AWS integration
+---
 
-The project currently integrates with:
+## 15. Short final presentation sentence
 
-```text
-Amazon S3
-```
-
-S3 is used to store generated cloud security reports.
-
-## 15. Future AWS extension
-
-The next planned steps are:
-
-```text
-AWS RDS or DynamoDB for persistent findings
-AWS ECS or EC2 for deployment
-AWS CloudWatch for monitoring
-CI/CD pipeline for automated deployment
-```
+Cloud Security AI Assistant is a secured Spring Boot microservices application that analyzes cloud security findings, generates AI-style risk explanations, creates security reports, and stores generated reports in Amazon S3. The system is protected with Keycloak, JWT authentication, and role-based authorization, and it runs locally using Docker Compose.

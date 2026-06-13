@@ -103,6 +103,9 @@ The user has the `SECURITY_ANALYST` role.
 
 The Gateway validates this JWT token before allowing access to protected routes.
 
+
+Check the existing token: $token.Length
+
 ## 6. Test protected endpoint with token
 
 Command:
