@@ -10,6 +10,7 @@ import com.cld.finding.client.ReportClient;
 import com.cld.finding.model.ReportRequest;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 public class FindingController {
@@ -87,5 +88,37 @@ public class FindingController {
                 aiResponse.recommendedActions());
 
         return reportClient.generateReport(reportRequest);
+    }
+
+    @PostMapping("/findings/{id}/report/store")
+    public Map<String, String> generateAndStoreReport(@PathVariable Long id) {
+        SecurityFinding finding = findingRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Finding not found"));
+
+        AiAnalysisRequest aiRequest = new AiAnalysisRequest(
+                finding.getId(),
+                finding.getType(),
+                finding.getApiCall(),
+                finding.getUsername(),
+                finding.getSourceIp(),
+                finding.getRegion(),
+                finding.getSeverity()
+        );
+
+        AiAnalysisResponse aiResponse = aiClient.analyzeFinding(aiRequest);
+
+        ReportRequest reportRequest = new ReportRequest(
+                finding.getId(),
+                finding.getType(),
+                finding.getApiCall(),
+                finding.getUsername(),
+                finding.getSourceIp(),
+                finding.getRegion(),
+                finding.getSeverity(),
+                aiResponse.riskExplanation(),
+                aiResponse.recommendedActions()
+        );
+
+        return reportClient.generateAndStoreReport(reportRequest);
     }
 }

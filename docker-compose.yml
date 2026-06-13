@@ -50,6 +50,10 @@ services:
     environment:
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka
       EUREKA_INSTANCE_PREFER_IP_ADDRESS: true
+      AWS_REGION: ${AWS_REGION:-eu-central-1}
+      S3_BUCKET_NAME: ${S3_BUCKET_NAME:-cloud-security-ai-assistant-bucket}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
     depends_on:
       - discovery-service
 

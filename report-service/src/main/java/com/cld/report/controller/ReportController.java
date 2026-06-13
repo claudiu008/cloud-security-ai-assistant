@@ -1,12 +1,20 @@
 package com.cld.report.controller;
 
 import com.cld.report.model.ReportRequest;
+import com.cld.report.service.S3ReportStorageService;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 public class ReportController {
+
+    private final S3ReportStorageService s3ReportStorageService;
+
+    public ReportController(S3ReportStorageService s3ReportStorageService) {
+        this.s3ReportStorageService = s3ReportStorageService;
+    }
 
     @GetMapping("/reports/test")
     public String test() {
@@ -15,6 +23,22 @@ public class ReportController {
 
     @PostMapping("/reports/generate")
     public String generateReport(@RequestBody ReportRequest request) {
+        return buildReport(request);
+    }
+
+    @PostMapping("/reports/generate-and-store")
+    public Map<String, String> generateAndStoreReport(@RequestBody ReportRequest request) {
+        String report = buildReport(request);
+        String s3Key = s3ReportStorageService.storeReport(request.findingId(), report);
+
+        return Map.of(
+                "message", "Report generated and stored successfully",
+                "bucket", "cloud-security-ai-assistant-bucket",
+                "s3Key", s3Key
+        );
+    }
+
+    private String buildReport(ReportRequest request) {
         List<String> actions = request.recommendedActions();
 
         String formattedActions = actions == null || actions.isEmpty()
@@ -47,6 +71,7 @@ public class ReportController {
                 request.region(),
                 request.severity(),
                 request.riskExplanation(),
-                formattedActions);
+                formattedActions
+        );
     }
 }
