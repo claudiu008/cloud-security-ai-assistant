@@ -15,25 +15,26 @@ public class DataLoader implements CommandLineRunner {
     }
 
     @Override
+    @SuppressWarnings("NullableProblems")
     public void run(String... args) {
         if (findingRepository.count() == 0) {
             findingRepository.save(new SecurityFinding(
-                    1L,
                     "RootCredentialUsage",
                     "DescribeRegions",
                     "root",
                     "86.120.10.55",
                     "eu-central-1",
-                    "LOW"));
+                    "LOW"
+            ));
 
             findingRepository.save(new SecurityFinding(
-                    2L,
                     "RootCredentialUsage",
                     "GetAccountSummary",
                     "root",
                     "86.120.10.55",
                     "eu-central-1",
-                    "LOW"));
+                    "LOW"
+            ));
         }
     }
 }

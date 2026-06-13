@@ -8,6 +8,7 @@ import com.cld.finding.repository.FindingRepository;
 import org.springframework.web.bind.annotation.*;
 import com.cld.finding.client.ReportClient;
 import com.cld.finding.model.ReportRequest;
+import com.cld.finding.service.DynamoDbFindingService;
 
 import java.util.List;
 import java.util.Map;
@@ -18,14 +19,18 @@ public class FindingController {
     private final AiClient aiClient;
     private final ReportClient reportClient;
     private final FindingRepository findingRepository;
+    private final DynamoDbFindingService dynamoDbFindingService;
 
     public FindingController(
+            FindingRepository findingRepository,
             AiClient aiClient,
             ReportClient reportClient,
-            FindingRepository findingRepository) {
+            DynamoDbFindingService dynamoDbFindingService
+    ) {
+        this.findingRepository = findingRepository;
         this.aiClient = aiClient;
         this.reportClient = reportClient;
-        this.findingRepository = findingRepository;
+        this.dynamoDbFindingService = dynamoDbFindingService;
     }
 
     @GetMapping("/findings/test")
@@ -36,6 +41,16 @@ public class FindingController {
     @GetMapping("/findings")
     public List<SecurityFinding> getFindings() {
         return findingRepository.findAll();
+    }
+
+    @GetMapping("/findings/dynamodb")
+    public List<SecurityFinding> getFindingsFromDynamoDb() {
+        return dynamoDbFindingService.findAll();
+    }
+
+    @GetMapping("/findings/dynamodb/{id}")
+    public SecurityFinding getFindingFromDynamoDbById(@PathVariable String id) {
+        return dynamoDbFindingService.findById(id);
     }
 
     @PostMapping("/findings")
