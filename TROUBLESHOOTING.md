@@ -16,6 +16,7 @@ Fix:
 
 ```powershell
 docker compose down
+docker ps
 ```
 
 Then start again:
@@ -24,19 +25,9 @@ Then start again:
 docker compose up
 ```
 
-If the problem continues, check running containers:
+---
 
-```powershell
-docker ps
-```
-
-Stop a specific container:
-
-```powershell
-docker stop <container_name>
-```
-
-## 2. Token expired
+## 2. Token expired or invalid
 
 Error:
 
@@ -73,6 +64,8 @@ Invoke-RestMethod `
   -Headers @{ Authorization = "Bearer $token" }
 ```
 
+---
+
 ## 3. Keycloak realm does not exist
 
 Error:
@@ -102,6 +95,8 @@ docker compose up
 
 The `cloud-security` realm should be imported automatically.
 
+---
+
 ## 4. Maven wrapper permission denied
 
 Error:
@@ -130,6 +125,8 @@ Then rebuild:
 docker compose up --build
 ```
 
+---
+
 ## 5. Services do not appear immediately in Eureka
 
 Observation:
@@ -157,7 +154,199 @@ AI-SERVICE
 REPORT-SERVICE
 ```
 
-## 6. S3 upload fails
+---
+
+## 6. Finding Service exits after startup
+
+Symptom:
+
+```text
+finding-service exited with code 1
+```
+
+Fix:
+
+Check the real error:
+
+```powershell
+docker logs finding-service --tail 200
+```
+
+Look for:
+
+```text
+ERROR
+Exception
+Caused by
+APPLICATION FAILED TO START
+```
+
+Known fixed issue:
+
+If `DataLoader.java` uses manual IDs like `1L` and `2L` while `SecurityFinding.id` has `@GeneratedValue`, Hibernate can fail.
+
+Correct `DataLoader.java` should save findings without manual ID values:
+
+```java
+findingRepository.save(new SecurityFinding(
+        "RootCredentialUsage",
+        "DescribeRegions",
+        "root",
+        "86.120.10.55",
+        "eu-central-1",
+        "LOW"
+));
+```
+
+---
+
+## 7. DynamoDB endpoint returns 404
+
+Error:
+
+```text
+HTTP/1.1 404 Not Found
+```
+
+Check direct endpoint:
+
+```powershell
+curl.exe -i http://localhost:8081/findings/dynamodb
+```
+
+Expected:
+
+```text
+HTTP/1.1 200
+```
+
+If direct endpoint returns 404, check `FindingController.java`.
+
+The endpoint should be:
+
+```java
+@GetMapping("/findings/dynamodb")
+public List<SecurityFinding> getFindingsFromDynamoDb() {
+    return dynamoDbFindingService.findAll();
+}
+```
+
+If direct endpoint works but Gateway endpoint fails, check:
+
+```powershell
+Invoke-RestMethod `
+  -Uri "http://localhost:8080/api/findings/dynamodb" `
+  -Headers @{ Authorization = "Bearer $token" }
+```
+
+If it returns 401, get a new token.
+
+---
+
+## 8. DynamoDB endpoint returns AccessDenied
+
+Possible error:
+
+```text
+AccessDeniedException
+```
+
+Cause:
+
+The IAM user does not have permission to read from the DynamoDB table.
+
+Required permissions:
+
+```text
+dynamodb:GetItem
+dynamodb:PutItem
+dynamodb:Scan
+```
+
+Required resource:
+
+```text
+arn:aws:dynamodb:eu-central-1:<ACCOUNT_ID>:table/cloud-security-findings
+```
+
+Fix:
+
+Check IAM policy attached to the application user.
+
+Expected policy name:
+
+```text
+CloudSecurityFindingsDynamoDBPolicy
+```
+
+---
+
+## 9. DynamoDB table not found
+
+Possible error:
+
+```text
+ResourceNotFoundException
+```
+
+Cause:
+
+The table name is wrong, the table does not exist, or the region is wrong.
+
+Fix:
+
+Check `.env`:
+
+```env
+AWS_REGION=eu-central-1
+DYNAMODB_FINDINGS_TABLE_NAME=cloud-security-findings
+```
+
+Check AWS Console:
+
+```text
+DynamoDB -> Tables -> cloud-security-findings
+```
+
+Expected status:
+
+```text
+Active
+```
+
+---
+
+## 10. DynamoDB returns items in different order
+
+Observation:
+
+The endpoint returns:
+
+```text
+id 2
+id 1
+```
+
+instead of:
+
+```text
+id 1
+id 2
+```
+
+Cause:
+
+DynamoDB `Scan` does not guarantee ordering.
+
+Fix:
+
+No fix needed for demo.
+
+The data is correct.
+
+---
+
+## 11. S3 upload fails because credentials are missing
 
 Possible error:
 
@@ -182,6 +371,7 @@ Expected variables:
 ```env
 AWS_REGION=eu-central-1
 S3_BUCKET_NAME=cloud-security-ai-assistant-bucket
+DYNAMODB_FINDINGS_TABLE_NAME=cloud-security-findings
 AWS_ACCESS_KEY_ID=...
 AWS_SECRET_ACCESS_KEY=...
 ```
@@ -193,7 +383,9 @@ docker compose down
 docker compose up --build
 ```
 
-## 7. S3 access denied
+---
+
+## 12. S3 access denied
 
 Possible error:
 
@@ -205,11 +397,7 @@ Cause:
 
 The IAM user does not have permission to upload to the bucket.
 
-Fix:
-
-Check IAM policy for the application user.
-
-Required permission for upload:
+Required permission:
 
 ```text
 s3:PutObject
@@ -227,7 +415,9 @@ The application uploads reports under:
 reports/
 ```
 
-## 8. S3 bucket not found
+---
+
+## 13. S3 bucket not found
 
 Possible error:
 
@@ -253,33 +443,9 @@ Check AWS Console:
 S3 -> cloud-security-ai-assistant-bucket
 ```
 
-## 9. S3 region mismatch
+---
 
-Possible error:
-
-```text
-The bucket is in this region...
-```
-
-Cause:
-
-The application uses a different AWS region than the bucket.
-
-Fix:
-
-Check `.env`:
-
-```env
-AWS_REGION=eu-central-1
-```
-
-The project bucket should be in:
-
-```text
-Europe (Frankfurt) eu-central-1
-```
-
-## 10. .env appears in git status
+## 14. .env appears in git status
 
 Problem:
 
@@ -308,13 +474,17 @@ git status
 
 `.env` must not appear.
 
-## 11. IntelliJ cannot resolve AWS SDK classes
+---
+
+## 15. IntelliJ cannot resolve AWS SDK classes
 
 Errors:
 
 ```text
 Cannot resolve symbol software
+Cannot resolve symbol DynamoDbClient
 Cannot resolve symbol S3Client
+Cannot resolve symbol AttributeValue
 Cannot resolve symbol PutObjectRequest
 Cannot resolve symbol RequestBody
 ```
@@ -333,7 +503,7 @@ Reload All Maven Projects
 
 Alternative:
 
-Right click `report-service/pom.xml` and choose:
+Right click the service `pom.xml` and choose:
 
 ```text
 Maven -> Reload project
@@ -345,7 +515,33 @@ If needed:
 File -> Invalidate Caches -> Invalidate and Restart
 ```
 
-## 12. Check containers
+---
+
+## 16. Docker rebuild downloads dependencies often
+
+Cause:
+
+Docker rebuild runs Maven inside the image build.
+
+When code or `pom.xml` changes, Maven may download dependencies again.
+
+Recommended workflow during development:
+
+```powershell
+cd finding-service
+.\mvnw.cmd package -DskipTests
+```
+
+Only after `BUILD SUCCESS`, rebuild Docker:
+
+```powershell
+cd ..
+docker compose up --build
+```
+
+---
+
+## 17. Check containers
 
 List running containers:
 
@@ -368,7 +564,9 @@ docker logs report-service
 docker logs keycloak
 ```
 
-## 13. Clean restart
+---
+
+## 18. Clean restart
 
 Use this when the local environment becomes messy:
 
@@ -383,7 +581,9 @@ If a rebuild is needed:
 docker compose up --build
 ```
 
-## 14. Main demo commands
+---
+
+## 19. Main demo commands
 
 Public endpoint:
 
@@ -414,11 +614,19 @@ $response = Invoke-RestMethod `
 $token = $response.access_token
 ```
 
-Protected endpoint with token:
+Protected H2 endpoint:
 
 ```powershell
 Invoke-RestMethod `
   -Uri "http://localhost:8080/api/findings" `
+  -Headers @{ Authorization = "Bearer $token" }
+```
+
+Protected DynamoDB endpoint:
+
+```powershell
+Invoke-RestMethod `
+  -Uri "http://localhost:8080/api/findings/dynamodb" `
   -Headers @{ Authorization = "Bearer $token" }
 ```
 
